@@ -48,7 +48,7 @@ module decode (
 );
 
 //******************************************************************************
-// instruction field :)
+// instruction field
 //******************************************************************************
 
     wire [5:0] op = instr[31:26];
@@ -82,17 +82,21 @@ module decode (
 
     wire isJ    = (op == `J);
 
+	wire isJR = (op == `SPECIAL) & (funct == `JR);
+
 //******************************************************************************
 // shift instruction decode
 //******************************************************************************
 
     wire isSLL = (op == `SPECIAL) & (funct == `SLL);
     wire isSRL = (op == `SPECIAL) & (funct == `SRL);
+	wire isSRA = (op == `SPECIAL) & (funct == `SRA);
     wire isSLLV = (op == `SPECIAL) & (funct == `SLLV);
     wire isSRLV = (op == `SPECIAL) & (funct == `SRLV);
+	wire isSRAV = (op == `SPECIAL) & (funct == `SRAV);
 
-    wire isShiftImm = isSLL | isSRL;
-    wire isShift = isShiftImm | isSLLV | isSRLV;
+    wire isShiftImm = isSLL | isSRL | isSRA;
+    wire isShift = isShiftImm | isSLLV | isSRLV | isSRAV;
 
 //******************************************************************************
 // ALU instructions decode / control signal for ALU datapath
@@ -124,9 +128,13 @@ module decode (
             {`SPECIAL, `SLT}:   alu_opcode = `ALU_SLT;
             {`SPECIAL, `SLTU}:  alu_opcode = `ALU_SLTU;
             {`SPECIAL, `SLL}:   alu_opcode = `ALU_SLL;
+		{`SPECIAL, `SRA}:	alu_opcode = `ALU_SRA;
             {`SPECIAL, `SRL}:   alu_opcode = `ALU_SRL;
             {`SPECIAL, `SLLV}:  alu_opcode = `ALU_SLL;
+		{`SPECIAL, `SRAV}:	alu_opcode = `ALU_SRA;
             {`SPECIAL, `SRLV}:  alu_opcode = `ALU_SRL;
+		{`SPECIAL, `XOR}:	alu_opcode = `ALU_XOR;
+		{`SPECIAL2, `MUL}:	alu_opcode = `ALU_MUL;
             // compare rs data to 0, only care about 1 operand
             {`BGTZ, `DC6}:      alu_opcode = `ALU_PASSX;
             {`BLEZ, `DC6}:      alu_opcode = `ALU_PASSX;
@@ -151,10 +159,11 @@ module decode (
 
     wire use_imm = &{op != `SPECIAL, op != `SPECIAL2, op != `BNE, op != `BEQ}; // where to get 2nd ALU operand from: 0 for RtData, 1 for Immediate
 
+	wire [31:0] imm_zero_extend = {16'b0, immediate};
     wire [31:0] imm_sign_extend = {{16{immediate[15]}}, immediate};
     wire [31:0] imm_upper = {immediate, 16'b0};
 
-    wire [31:0] imm = (op == `LUI) ? imm_upper : imm_sign_extend;
+    wire [31:0] imm = (op == `LUI) ? imm_upper : (op == `ORI) ? imm_zero_extend : imm_sign_extend;
 
 //******************************************************************************
 // forwarding and stalling logic
@@ -227,11 +236,19 @@ module decode (
 //******************************************************************************
 
     wire isEqual = rs_data == rt_data;
+	wire signed [31:0] rs_data_signed = rs_data; //LTZ, LTEZ comparisons
+
+	wire isLTZ = rs_data_signed < 0;
+	wire isLTEZ = rs_data_signed <= 0;
 
     assign jump_branch = |{isBEQ & isEqual,
-                           isBNE & ~isEqual};
+                           isBNE & ~isEqual,
+				isBLTZNL & isLTZ,
+				isBGTZ & ~isLTEZ,
+				isBLEZ & isLTEZ,
+				isBGEZNL & ~isLTZ };
 
     assign jump_target = isJ;
-    assign jump_reg = 1'b0;
+    assign jump_reg = isJR;
 
 endmodule

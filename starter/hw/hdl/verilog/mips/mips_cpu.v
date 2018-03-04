@@ -54,6 +54,9 @@ module mips_cpu (
         .rst            (rst),
         .en             (en_if),
         .jump_target    (jump_target_id),
+	.jump_branch	(jump_branch_id),
+	.jump_register	(jump_reg_id),
+	.jr_pc		(jr_pc_id),
         .pc_id          (pc_id),
         .instr_id       (instr_id[25:0]),
         .pc             (pc_if)
@@ -61,6 +64,13 @@ module mips_cpu (
 
     assign pc = pc_if; // output pc to parent module
 
+//	always @* begin
+//		case(jump_branch_id)
+//			1'b1: pc = pc_if + {{14{instr_id[15]}}, instr_id[15:0], 2'b0};
+//			default: pc = pc_if;
+//		endcase
+//	end
+	
     // needed for D stage
     dffare #(32) pc_if2id (.clk(clk), .r(rst), .en(en_if), .d(pc_if), .q(pc_id));
 
