@@ -167,11 +167,11 @@ module decode (
 
     wire use_imm = &{op != `SPECIAL, op != `SPECIAL2, op != `BNE, op != `BEQ}; // where to get 2nd ALU operand from: 0 for RtData, 1 for Immediate
 
-	wire [31:0] imm_zero_extend = {16'b0, immediate};
+    wire [31:0] imm_zero_extend = {16'b0, immediate};
     wire [31:0] imm_sign_extend = {{16{immediate[15]}}, immediate};
     wire [31:0] imm_upper = {immediate, 16'b0};
 
-    wire [31:0] imm = (op == `LUI) ? imm_upper : (op == `ORI) ? imm_zero_extend : imm_sign_extend;
+    wire [31:0] imm = (op == `LUI) ? imm_upper : |{(op == `ORI), (op == `ANDI), op == `XORI} ? imm_zero_extend : imm_sign_extend;
 
 //******************************************************************************
 // forwarding and stalling logic
@@ -192,12 +192,11 @@ module decode (
     wire isLUI = op == `LUI;
     wire read_from_rs = ~|{isLUI, jump_target, isShiftImm};
 
-    wire isALUImm = |{op == `ADDI, op == `ADDIU, op == `SLTI, op == `SLTIU, op == `ANDI, op == `ORI};
+    wire isALUImm = |{op == `ADDI, op == `ADDIU, op == `SLTI, op == `SLTIU, op == `ANDI, op == `ORI, op == `XORI};
     wire read_from_rt = ~|{isLUI, jump_target, isALUImm, mem_read};
 
-   //assign stall = (rs_mem_dependency & read_from_rs) | (rt_mem_dependancy & read_from_rt);
-   assign stall = rs_mem_dependency & read_from_rs;
-   
+   assign stall = |{(rs_mem_dependency & read_from_rs), (rt_mem_dependency & read_from_rt)};
+     
     assign jr_pc = rs_data;
     assign mem_write_data = rt_data;
 
@@ -215,8 +214,8 @@ module decode (
     // for immediate operations, use Imm
     // otherwise use rt
 
-    assign alu_op_y = (use_imm) ? imm : rt_data;
-    assign reg_write_addr = (use_imm) ? rt_addr : rd_addr;
+    assign alu_op_y = |{isJAL, isJALR} ? pc + 4'h8 : (use_imm) ? imm : rt_data;
+    assign reg_write_addr = |{isJAL, isJALR} ? `RA : |{use_imm, (op == `SC)} ? rt_addr : rd_addr;
 
     // determine when to write back to a register (any operation that isn't an
     // unconditional store, non-linking branch, or non-linking jump)
@@ -230,7 +229,7 @@ module decode (
 // Memory control
 //******************************************************************************
     assign mem_we = |{op == `SW, op == `SB, op == `SC};    // write to memory
-   assign mem_read = |{op == `LW, op == `LB, op == `LL, op == `LBU};   // use memory data for writing to a register
+   assign mem_read = |{op == `LB, op == `LBU, op == `LL, op == `LW};   // use memory data for writing to a register
     assign mem_byte = |{op == `SB, op == `LB, op == `LBU};    // memory operations use only one byte
     assign mem_signextend = ~|{op == `LBU};     // sign extend sub-word memory reads
 
@@ -240,11 +239,13 @@ module decode (
     assign mem_sc_id = (op == `SC);
 
     // 'atomic_id' is high when a load-linked has not been followed by a store.
-   assign atomic_id = 1'b0;
-
+   assign atomic_id = mem_we ? 1'b0 : (op == `LL) ? 1'b1 : atomic_ex;
+   //assign atomic_ad = 1'b0;
+   
     // 'mem_sc_mask_id' is high when a store conditional should not store
-    assign mem_sc_mask_id = 1'b0;
-
+   assign mem_sc_mask_id = &{mem_sc_id, ~atomic_ex};
+  // assign mem_sc_mask_id = 1'b0;
+   
 //******************************************************************************
 // Branch resolution
 //******************************************************************************
@@ -252,8 +253,8 @@ module decode (
     wire isEqual = rs_data == rt_data;
 	wire signed [31:0] rs_data_signed = rs_data; //LTZ, LTEZ comparisons
 
-	wire isLTZ = rs_data_signed < 0;
-	wire isLTEZ = rs_data_signed <= 0;
+	wire isLTZ = $signed(rs_data_signed) < $signed(32'b0);
+	wire isLTEZ = $signed(rs_data_signed) <= $signed(32'b0);
 
     assign jump_branch = |{isBEQ & isEqual,
                            isBNE & ~isEqual,
@@ -262,7 +263,7 @@ module decode (
 				isBLEZ & isLTEZ,
 				isBGEZNL & ~isLTZ };
 
-    assign jump_target = isJ;
-    assign jump_reg = isJR;
+    assign jump_target = |{isJ, isJAL};
+    assign jump_reg = |{isJR, isJALR};
 
 endmodule
