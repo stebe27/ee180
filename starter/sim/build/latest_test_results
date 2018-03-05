@@ -9,7 +9,7 @@ sltiu 1
 blez 1
 subu 1
 ori 1
-stall_idrs_ex x
+stall_idrs_ex 1
 srlv x
 andi 1
 and 1
@@ -25,7 +25,7 @@ fwd_idrt_mem X
 bgez 1
 movn 1
 bltz 1
-lw 12816
+lw 1
 srav x
 lb X
 slti 1
