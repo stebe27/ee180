@@ -112,7 +112,10 @@ module decode (
             {`SLTIU, `DC6}:     alu_opcode = `ALU_SLTU;
             {`ANDI, `DC6}:      alu_opcode = `ALU_AND;
             {`ORI, `DC6}:       alu_opcode = `ALU_OR;
-            {`LB, `DC6}:        alu_opcode = `ALU_ADD;
+            {`XORI, `DC6}:      alu_opcode = `ALU_XOR;
+	    {`NOR, `DC6}:       alu_opcode = `ALU_NOR;
+	    {`XOR, `DC6}:       alu_opcode = `ALU_XOR;
+	    {`LB, `DC6}:        alu_opcode = `ALU_ADD;
             {`LW, `DC6}:        alu_opcode = `ALU_ADD;
             {`LBU, `DC6}:       alu_opcode = `ALU_ADD;
             {`SB, `DC6}:        alu_opcode = `ALU_ADD;
@@ -125,7 +128,9 @@ module decode (
             {`SPECIAL, `SUBU}:  alu_opcode = `ALU_SUBU;
             {`SPECIAL, `AND}:   alu_opcode = `ALU_AND;
             {`SPECIAL, `OR}:    alu_opcode = `ALU_OR;
-            {`SPECIAL, `MOVN}:  alu_opcode = `ALU_PASSX;
+            {`SPECIAL, `XOR}:   alu_opcode = `ALU_XOR;
+	    {`SPECIAL, `NOR}:   alu_opcode = `ALU_NOR;
+	    {`SPECIAL, `MOVN}:  alu_opcode = `ALU_PASSX;
             {`SPECIAL, `MOVZ}:  alu_opcode = `ALU_PASSX;
             {`SPECIAL, `SLT}:   alu_opcode = `ALU_SLT;
             {`SPECIAL, `SLTU}:  alu_opcode = `ALU_SLTU;
@@ -162,7 +167,7 @@ module decode (
 
     wire use_imm = &{op != `SPECIAL, op != `SPECIAL2, op != `BNE, op != `BEQ}; // where to get 2nd ALU operand from: 0 for RtData, 1 for Immediate
 
-	wire [31:0] imm_zero_extend = {16'b0, immediate};
+    wire [31:0] imm_zero_extend = {16'b0, immediate};
     wire [31:0] imm_sign_extend = {{16{immediate[15]}}, immediate};
     wire [31:0] imm_upper = {immediate, 16'b0};
 
